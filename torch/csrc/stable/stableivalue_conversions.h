@@ -126,6 +126,18 @@ struct FromImpl<ScalarType> {
   }
 };
 
+// [Note DeviceType version guard]
+// This conversion was introduced in 2.10. However, we do not gate it
+// with TORCH_FEATURE_VERSION >= TORCH_VERSION_2_10_0 because this
+// conversion is not actually used to pass DeviceType between user
+// extensions and libtorch (i.e. there is no c10::TypeKind::DeviceType).
+// The purpose of gating other conversions is to ensure that user
+// extensions do not try to pass a StableIValue that libtorch is
+// unable to interpret.
+// This conversion is only used
+// (1) In the conversion for torch::stable::Device (already gated)
+// (2) Within the user extension to translate between libtorch/extension's
+//     DeviceType (no gating needed)
 // Specialization for torch::headeronly::DeviceType => StableIValue
 // Note that we call into the shim to translate between the user's
 // DeviceType and libtorch's DeviceType, which can be different!
@@ -233,6 +245,9 @@ struct FromImpl<torch::headeronly::HeaderOnlyArrayRef<T>> {
       const torch::headeronly::HeaderOnlyArrayRef<T>& val,
       [[maybe_unused]] uint64_t extension_build_version,
       [[maybe_unused]] bool is_internal) {
+    static_assert(
+        TORCH_FEATURE_VERSION >= TORCH_VERSION_2_10_0,
+        "HeaderOnlyArrayRef conversion requires TORCH_FEATURE_VERSION >= TORCH_VERSION_2_10_0");
     StableListHandle new_list_handle;
     try {
       TORCH_ERROR_CODE_CHECK(
@@ -276,6 +291,9 @@ struct FromImpl<torch::stable::Device> {
       const torch::stable::Device& val,
       [[maybe_unused]] uint64_t extension_build_version,
       [[maybe_unused]] bool is_internal) {
+    static_assert(
+        TORCH_FEATURE_VERSION >= TORCH_VERSION_2_10_0,
+        "torch::stable::Device conversion requires TORCH_FEATURE_VERSION >= TORCH_VERSION_2_10_0");
     // Convert DeviceType to shim representation (int32_t)
     StableIValue device_type_shim = from(val.type());
     // Pack: lower 32 bits = device index, upper 32 bits = device type (shim)
@@ -387,6 +405,7 @@ struct ToImpl<ScalarType> {
   }
 };
 
+// See [Note DeviceType version guard]
 // Specialization for StableIValue => torch::headeronly::DeviceType
 template <>
 struct ToImpl<DeviceType> {
@@ -478,6 +497,9 @@ struct ToImpl<std::vector<T>> {
       StableIValue val,
       [[maybe_unused]] uint64_t extension_build_version,
       [[maybe_unused]] bool is_internal) {
+    static_assert(
+        TORCH_FEATURE_VERSION >= TORCH_VERSION_2_10_0,
+        "std::vector conversion requires TORCH_FEATURE_VERSION >= TORCH_VERSION_2_10_0");
     auto list_handle = to<StableListHandle>(val);
     size_t size;
     try {
@@ -509,6 +531,9 @@ struct ToImpl<torch::stable::Device> {
       StableIValue val,
       [[maybe_unused]] uint64_t extension_build_version,
       [[maybe_unused]] bool is_internal) {
+    static_assert(
+        TORCH_FEATURE_VERSION >= TORCH_VERSION_2_10_0,
+        "torch::stable::Device conversion requires TORCH_FEATURE_VERSION >= TORCH_VERSION_2_10_0");
     // Unpack: lower 32 bits = device index, upper 32 bits = device type (shim)
     int32_t device_index = static_cast<int32_t>(val & 0xFFFFFFFF);
     StableIValue device_type_shim = (val >> 32) & 0xFFFFFFFF;
